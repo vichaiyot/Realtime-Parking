@@ -34,8 +34,16 @@ function App() {
   const [exitVisible, setExitVisible] = useState(false);
   const [boxesDisabled, setBoxesDisabled] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [bookedSlots, setBookedSlots] = useState({}); // ใช้เก็บข้อมูลการจองทั้งหมด
 
   useEffect(() => {
+    // ฟังก์ชั่นนี้จะดึงข้อมูลการจองทั้งหมดจาก Firebase
+    const bookingsRef = ref(database, "Bookings");
+    onValue(bookingsRef, (snapshot) => {
+      const data = snapshot.val();
+      setBookedSlots(data || {});
+    });
+
     const sensorRef = ref(database, "/Sensors");
     onValue(sensorRef, (snapshot) => {
       const data = snapshot.val();
@@ -49,84 +57,6 @@ function App() {
       }
     });
   }, [database]);
-
-  const [loginData, setLoginData] = useState({
-    firstname: '',
-    lastname: '',
-    cardID: '',
-    profilePicture: null,
-  });
-  const [imagePreview, setImagePreview] = useState(null);
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (!file.type.startsWith("image/")) {
-        alert("Please upload a valid image file.");
-        return;
-      }
-      const maxSize = 2 * 1024 * 1024; // 2 MB
-      if (file.size > maxSize) {
-        alert("File size exceeds 2 MB.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!loginData.firstname || !loginData.lastname || !loginData.cardID) {
-      alert("กรุณากรอกข้อมูลให้ครบถ้วน!");
-      return;
-    }
-
-    try {
-      const userId = loginData.firstname;  // ใช้ cardID เป็น userId
-
-      const userRef = ref(database, "Users/" + userId);
-      const snapshot = await get(userRef);
-
-      if (snapshot.exists()) {
-        const userData = snapshot.val();
-        if (
-          userData.firstname === loginData.firstname &&
-          userData.cardID === loginData.cardID
-        ) {
-          alert("Login สำเร็จ!");
-
-          setUser({
-            firstname: userData.firstname,
-            lastname: userData.lastname,
-            profilePicture: imagePreview || 'https://www.fareastmarble.com/wp-content/uploads/2021/08/G30-Indian-Black-web-scaled.jpg',
-            userId: loginData.cardID
-          });
-
-          setCurrentSection("book");
-
-          setLoginData({
-            firstname: '',
-            lastname: '',
-            cardID: '',
-            password: '',
-          });
-          setImagePreview(null);
-        } else {
-          alert("ข้อมูลไม่ตรง กรุณาตรวจสอบอีกครั้ง!");
-        }
-      } else {
-        alert("ไม่มีผู้ใช้นี้ในระบบ!");
-      }
-    } catch (error) {
-      console.error("Error during login: ", error);
-      alert("เกิดข้อผิดพลาดในระบบ กรุณาลองอีกครั้ง!");
-    }
-  };
 
   const handleExit = () => {
     const exitRef = ref(database, "/Exit");
@@ -158,6 +88,12 @@ function App() {
   const selectBox = (element, slot) => {
     if (!user.userId) {
       alert("กรุณาล็อกอินก่อน!");
+      return;
+    }
+
+    // ตรวจสอบว่าช่องนี้ถูกจองไปแล้วหรือยัง
+    if (bookedSlots[selectedSlot] && bookedSlots[selectedSlot][slot]) {
+      alert("ช่องนี้ถูกจองแล้ว!");
       return;
     }
 
@@ -227,25 +163,25 @@ function App() {
               </div>
               <div className="box-book">
                 <div
-                  className={`box ${selectedSlot === 'A1' ? 'activ' : ''}`}
+                  className={`box ${bookedSlots[user.userId] && bookedSlots[user.userId][slot] ? 'activ' : ''}`}
                   onClick={(e) => !boxesDisabled && selectBox(e.target, 'A1')}
-                  style={{ cursor: boxesDisabled ? 'not-allowed' : 'pointer' }}
+                  style={{ cursor: boxesDisabled || bookedSlots[selectedSlot] ? 'not-allowed' : 'pointer' }}
                 >
                   <h4>A1</h4>
                 </div>
 
                 <div
-                  className={`box ${selectedSlot === 'A2' ? 'activ' : ''}`}
+                  className={`box ${bookedSlots[user.userId] && bookedSlots[user.userId][slot] ? 'activ' : ''}`}
                   onClick={(e) => !boxesDisabled && selectBox(e.target, 'A2')}
-                  style={{ cursor: boxesDisabled ? 'not-allowed' : 'pointer' }}
+                  style={{ cursor: boxesDisabled || bookedSlots[selectedSlot] ? 'not-allowed' : 'pointer' }}
                 >
                   <h4>A2</h4>
                 </div>
 
                 <div
-                  className={`box ${selectedSlot === 'A3' ? 'activ' : ''}`}
+                  className={`box ${bookedSlots[user.userId] && bookedSlots[user.userId][slot] ? 'activ' : ''}`}
                   onClick={(e) => !boxesDisabled && selectBox(e.target, 'A3')}
-                  style={{ cursor: boxesDisabled ? 'not-allowed' : 'pointer' }}
+                  style={{ cursor: boxesDisabled || bookedSlots[selectedSlot] ? 'not-allowed' : 'pointer' }}
                 >
                   <h4>A3</h4>
                 </div>
