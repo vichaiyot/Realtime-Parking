@@ -21,59 +21,113 @@ function App() {
   const database = getDatabase(app);
   const storage = getStorage(app);
 
-  const [user, setUser] = useState({
-    userId: 'user123',
-    profilePicture: 'https://www.fareastmarble.com/wp-content/uploads/2021/08/G30-Indian-Black-web-scaled.jpg',
-    firstname: 'John',
-    lastname: 'Doe',
+  const [currentSection, setCurrentSection] = useState('book');
+  const [sensorStates, setSensorStates] = useState({
+    D1: false,
+    D2: false,
+    D3: false,
+    D4: false
   });
-  const [selectedSlot, setSelectedSlot] = useState(null);
-  const [bookedSlots, setBookedSlots] = useState({}); // ใช้เก็บข้อมูลการจองทั้งหมด
+  const [user, setUser] = useState({
+    profilePicture: 'https://www.fareastmarble.com/wp-content/uploads/2021/08/G30-Indian-Black-web-scaled.jpg'
+  });
   const [exitVisible, setExitVisible] = useState(false);
   const [boxesDisabled, setBoxesDisabled] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState(null);
 
-  // ดึงข้อมูลการจองจาก Firebase
   useEffect(() => {
-    const bookingsRef = ref(database, "Bookings");
-    onValue(bookingsRef, (snapshot) => {
+    const sensorRef = ref(database, "/Sensors");
+    onValue(sensorRef, (snapshot) => {
       const data = snapshot.val();
-      setBookedSlots(data || {});
+      if (data) {
+        setSensorStates({
+          D1: data.Sensor1 === "FULL",
+          D2: data.Sensor2 === "FULL",
+          D3: data.Sensor3 === "FULL",
+          D4: data.SensorD4 === "OBJECT_PRESENT"
+        });
+      }
     });
   }, [database]);
 
-  // ฟังก์ชั่นสำหรับการจองที่จอดรถ
-  const selectBox = (element, slot) => {
-    if (!user.userId) {
-      alert("กรุณาล็อกอินก่อน!");
-      return;
+  const [loginData, setLoginData] = useState({
+    firstname: '',
+    lastname: '',
+    cardID: '',
+    profilePicture: null,
+  });
+  const [imagePreview, setImagePreview] = useState(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        alert("Please upload a valid image file.");
+        return;
+      }
+      const maxSize = 2 * 1024 * 1024; // 2 MB
+      if (file.size > maxSize) {
+        alert("File size exceeds 2 MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
-
-    // ตรวจสอบว่าช่องนี้ถูกจองไปแล้วหรือยัง
-    if (bookedSlots[slot]) {
-      alert(`ช่อง ${slot} ถูกจองแล้ว!`);
-      return;
-    }
-
-    setBoxesDisabled(true);
-    element.classList.add('activ');
-    setSelectedSlot(slot);
-    setExitVisible(true);
-
-    // เพิ่มข้อมูลการจองช่องใน Firebase
-    const userId = user.userId;
-    const slotRef = ref(database, `Bookings/${slot}`);
-    set(slotRef, {
-      status: "booked",
-      user: `${user.firstname} ${user.lastname}`,
-      profilePicture: user.profilePicture
-    }).then(() => {
-      console.log(`Slot ${slot} has been booked for user ${userId}`);
-    }).catch(error => {
-      console.error("Error booking slot: ", error);
-    });
   };
 
-  // ฟังก์ชั่นสำหรับการออกจากที่จอดรถ
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!loginData.firstname || !loginData.lastname || !loginData.cardID) {
+      alert("กรุณากรอกข้อมูลให้ครบถ้วน!");
+      return;
+    }
+
+    try {
+      const userId = loginData.firstname;  // ใช้ cardID เป็น userId
+
+      const userRef = ref(database, "Users/" + userId);
+      const snapshot = await get(userRef);
+
+      if (snapshot.exists()) {
+        const userData = snapshot.val();
+        if (
+          userData.firstname === loginData.firstname &&
+          userData.cardID === loginData.cardID
+        ) {
+          alert("Login สำเร็จ!");
+
+          setUser({
+            firstname: userData.firstname,
+            lastname: userData.lastname,
+            profilePicture: imagePreview || 'https://www.fareastmarble.com/wp-content/uploads/2021/08/G30-Indian-Black-web-scaled.jpg',
+            userId: loginData.cardID
+          });
+
+          setCurrentSection("book");
+
+          setLoginData({
+            firstname: '',
+            lastname: '',
+            cardID: '',
+            password: '',
+          });
+          setImagePreview(null);
+        } else {
+          alert("ข้อมูลไม่ตรง กรุณาตรวจสอบอีกครั้ง!");
+        }
+      } else {
+        alert("ไม่มีผู้ใช้นี้ในระบบ!");
+      }
+    } catch (error) {
+      console.error("Error during login: ", error);
+      alert("เกิดข้อผิดพลาดในระบบ กรุณาลองอีกครั้ง!");
+    }
+  };
+
   const handleExit = () => {
     const exitRef = ref(database, "/Exit");
     set(exitRef, "OPEN");
@@ -83,9 +137,10 @@ function App() {
     setSelectedSlot(null);
 
     // รีเซ็ตสถานะของช่องที่จอดสำหรับผู้ใช้ที่ล็อกอินอยู่
-    const slotRef = ref(database, `Bookings/${selectedSlot}`);
+    const userId = user.userId;
+    const slotRef = ref(database, `Bookings/${userId}/${selectedSlot},${imagePreview}`);
     set(slotRef, null).then(() => {
-      console.log(`Slot ${selectedSlot} has been reset for user ${user.userId}`);
+      console.log(`Slot ${selectedSlot} has been reset for user ${userId}`);
     }).catch(error => {
       console.error("Error resetting slot status: ", error);
     });
@@ -93,6 +148,36 @@ function App() {
     // รีเซ็ต UI ช่องจอด
     document.querySelectorAll('.box').forEach(box => {
       box.classList.remove('activ');
+    });
+  };
+
+  const showSection = (sectionId) => {
+    setCurrentSection(sectionId);
+  };
+
+  const selectBox = (element, slot) => {
+    if (!user.userId) {
+      alert("กรุณาล็อกอินก่อน!");
+      return;
+    }
+
+    setBoxesDisabled(true);
+    element.classList.add('activ');
+    setSelectedSlot(slot);
+    setExitVisible(true);
+
+    const userId = user.userId;
+    const slotRef = ref(database, `Bookings/${userId}`);
+    set(slotRef, {
+      [slot]: {
+        status: "booked",
+        user: `${user.firstname} ${user.lastname}`,
+        profilePicture: user.profilePicture
+      }
+    }).then(() => {
+      console.log(`Slot ${slot} has been booked for user ${userId}`);
+    }).catch(error => {
+      console.error("Error booking slot: ", error);
     });
   };
 
@@ -116,65 +201,69 @@ function App() {
       </header>
 
       <section>
-        <div className="main-content">
-          <div className="box-book">
-            {/* ช่องที่จอดรถ A1 */}
-            <div
-              className={`box ${bookedSlots['A1'] ? 'activ' : ''}`}
-              onClick={(e) => !bookedSlots['A1'] && selectBox(e.target, 'A1')}
-              style={{ cursor: bookedSlots['A1'] ? 'not-allowed' : 'pointer' }}
-            >
-              <h4>A1</h4>
-              {bookedSlots['A1'] && (
-                <div className="booked-info">
-                  <img src={bookedSlots['A1'].profilePicture} alt="User" style={{ width: '20px', borderRadius: '50%' }} />
-                  <span>{bookedSlots['A1'].user}</span>
-                </div>
-              )}
-            </div>
-
-            {/* ช่องที่จอดรถ A2 */}
-            <div
-              className={`box ${bookedSlots['A2'] ? 'activ' : ''}`}
-              onClick={(e) => !bookedSlots['A2'] && selectBox(e.target, 'A2')}
-              style={{ cursor: bookedSlots['A2'] ? 'not-allowed' : 'pointer' }}
-            >
-              <h4>A2</h4>
-              {bookedSlots['A2'] && (
-                <div className="booked-info">
-                  <img src={bookedSlots['A2'].profilePicture} alt="User" style={{ width: '20px', borderRadius: '50%' }} />
-                  <span>{bookedSlots['A2'].user}</span>
-                </div>
-              )}
-            </div>
-
-            {/* ช่องที่จอดรถ A3 */}
-            <div
-              className={`box ${bookedSlots['A3'] ? 'activ' : ''}`}
-              onClick={(e) => !bookedSlots['A3'] && selectBox(e.target, 'A3')}
-              style={{ cursor: bookedSlots['A3'] ? 'not-allowed' : 'pointer' }}
-            >
-              <h4>A3</h4>
-              {bookedSlots['A3'] && (
-                <div className="booked-info">
-                  <img src={bookedSlots['A3'].profilePicture} alt="User" style={{ width: '20px', borderRadius: '50%' }} />
-                  <span>{bookedSlots['A3'].user}</span>
-                </div>
-              )}
-            </div>
+        <div className="sliedbar">
+          <div className="litsy" onClick={() => showSection('book')}>
+            <p>Reserve Parking</p>
           </div>
+          <div className="litsy" onClick={() => showSection('park')}>
+            <p>Parking Car</p>
+          </div>
+          <div className="litsy" onClick={() => showSection('login')}>
+            <p>Login</p>
+          </div>
+        </div>
 
-          {/* ปุ่มออกเมื่อผู้ใช้จองแล้ว */}
-          {exitVisible && (
-            <div className="exit">
-              <div className="exit-box">
-                <button
-                  onClick={handleExit}
-                  className="btn"
-                >
-                  EXIT
-                </button>
+        <div className="main-content">
+          {currentSection === 'book' && (
+            <div id="book">
+              <div className="haeduser">
+                <div className="userimg-head">
+                  <img src={user.profilePicture} alt="" />
+                </div>
+                <div className="username">
+                  <span className="username-fist">{user.firstname}</span>
+                  <span className="username-last">{user.lastname}</span>
+                </div>
               </div>
+              <div className="box-book">
+                <div
+                  className={`box ${selectedSlot === 'A1' ? 'activ' : ''}`}
+                  onClick={(e) => !boxesDisabled && selectBox(e.target, 'A1')}
+                  style={{ cursor: boxesDisabled ? 'not-allowed' : 'pointer' }}
+                >
+                  <h4>A1</h4>
+                </div>
+
+                <div
+                  className={`box ${selectedSlot === 'A2' ? 'activ' : ''}`}
+                  onClick={(e) => !boxesDisabled && selectBox(e.target, 'A2')}
+                  style={{ cursor: boxesDisabled ? 'not-allowed' : 'pointer' }}
+                >
+                  <h4>A2</h4>
+                </div>
+
+                <div
+                  className={`box ${selectedSlot === 'A3' ? 'activ' : ''}`}
+                  onClick={(e) => !boxesDisabled && selectBox(e.target, 'A3')}
+                  style={{ cursor: boxesDisabled ? 'not-allowed' : 'pointer' }}
+                >
+                  <h4>A3</h4>
+                </div>
+              </div>
+
+              {exitVisible && (
+                <div className="exit">
+                  <div className="exit-box">
+                    <button
+                      onClick={handleExit}
+                      disabled={!sensorStates.D4}
+                      className={`btn ${sensorStates.D4 ? 'enabled' : 'disabled'}`}
+                    >
+                      EXIT
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
