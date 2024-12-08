@@ -161,6 +161,11 @@ function App() {
       return;
     }
 
+    if (bookedSlots[slot]) {
+      alert(`ช่อง ${slot} ถูกจองโดย ${bookedSlots[slot].user} แล้ว!`);
+      return;
+    }
+
     setBoxesDisabled(true);
     element.classList.add('activ');
     setSelectedSlot(slot);
