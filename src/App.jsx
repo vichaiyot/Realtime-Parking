@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, onValue, set, get } from "firebase/database";
-import { getStorage } from 'firebase/storage';
+import { getDatabase, ref, onValue, set } from "firebase/database";
 import './App.css';
 import car1Image from './img/car1.png';
 
@@ -19,7 +18,6 @@ function App() {
 
   const app = initializeApp(firebaseConfig);
   const database = getDatabase(app);
-  const storage = getStorage(app);
 
   const [user, setUser] = useState({
     userId: 'user123',
@@ -28,11 +26,11 @@ function App() {
     lastname: 'Doe',
   });
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [bookedSlots, setBookedSlots] = useState({}); // ใช้เก็บข้อมูลการจองทั้งหมด
+  const [bookedSlots, setBookedSlots] = useState({}); // เก็บข้อมูลการจองทั้งหมด
   const [exitVisible, setExitVisible] = useState(false);
   const [boxesDisabled, setBoxesDisabled] = useState(false);
 
-  // ดึงข้อมูลการจองจาก Firebase
+  // ฟังก์ชั่นดึงข้อมูลการจองจาก Firebase แบบ Realtime
   useEffect(() => {
     const bookingsRef = ref(database, "Bookings");
     onValue(bookingsRef, (snapshot) => {
@@ -41,20 +39,20 @@ function App() {
     });
   }, [database]);
 
-  // ฟังก์ชั่นสำหรับการจองที่จอดรถ
+  // ฟังก์ชั่นการจองที่จอดรถ
   const selectBox = (element, slot) => {
     if (!user.userId) {
       alert("กรุณาล็อกอินก่อน!");
       return;
     }
 
-    // ตรวจสอบว่าช่องนี้ถูกจองไปแล้วหรือยัง
+    // ตรวจสอบว่าช่องนี้ถูกจองไปแล้วหรือไม่
     if (bookedSlots[slot]) {
       alert(`ช่อง ${slot} ถูกจองแล้ว!`);
       return;
     }
 
-    setBoxesDisabled(true);
+    setBoxesDisabled(true); // ปิดการเลือกช่องจนกว่าจะทำการออกจากที่จอด
     element.classList.add('activ');
     setSelectedSlot(slot);
     setExitVisible(true);
@@ -73,7 +71,7 @@ function App() {
     });
   };
 
-  // ฟังก์ชั่นสำหรับการออกจากที่จอดรถ
+  // ฟังก์ชั่นออกจากที่จอดรถ
   const handleExit = () => {
     const exitRef = ref(database, "/Exit");
     set(exitRef, "OPEN");
@@ -168,139 +166,12 @@ function App() {
           {exitVisible && (
             <div className="exit">
               <div className="exit-box">
-                <button
-                  onClick={handleExit}
-                  className="btn"
-                >
+                <button onClick={handleExit} className="btn">
                   EXIT
                 </button>
               </div>
             </div>
           )}
-
-          {currentSection === 'park' && (
-            <div id="park">
-              <div className="barall">
-                <div className="bar"></div>
-                <div className="bar"></div>
-                <div className="bar"></div>
-                <div className="bar"></div>
-              </div>
-
-              {(sensorStates.D1 && sensorStates.D2 && sensorStates.D3) ? (
-                <div className="full-message">
-                  <p>This parking lot is full, Sorry.</p>
-                  <div className="cary1">
-                    <img className="car1-display" src={car1Image} alt="Car 1" />
-                  </div>
-                  <div className="cary2">
-                    <img className="car2-display" src={car1Image} alt="Car2" />
-                  </div>
-                  <div className="cary3">
-                    <img className="car3-display" src={car1Image} alt="Car 3" />
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="car1">
-                    <img
-                      className="car1-display"
-                      src={car1Image}
-                      alt="Car 1"
-                      style={{ display: sensorStates['D1'] ? 'block' : 'none' }}
-                    />
-                    {selectedSlot === 'A1' ? (
-                      <img
-                        className="user1-display"
-                        src={user.profilePicture}
-                        alt="User 1"
-                        style={{ display: sensorStates['D1'] ? 'none' : 'block' }}
-                      />
-                    ) : (
-                      <h2 className="log1" style={{ display: sensorStates['D1'] ? 'none' : 'block' }}>A1</h2>
-                    )}
-                  </div>
-                  <div className="car2">
-                    <img
-                      className="car2-display"
-                      src={car1Image}
-                      alt="Car2"
-                      style={{ display: sensorStates['D2'] ? 'block' : 'none' }}
-                    />
-                    {selectedSlot === 'A2' ? (
-                      <img
-                        className="user2-display"
-                        src={user.profilePicture}
-                        alt="User 2"
-                        style={{ display: sensorStates['D2'] ? 'none' : 'block' }}
-                      />
-                    ) : (
-                      <h2 className="log2" style={{ display: sensorStates['D2'] ? 'none' : 'block' }}>A2</h2>
-                    )}
-                  </div>
-                  <div className="car3">
-                    <img
-                      className="car3-display"
-                      src={car1Image}
-                      alt="Car 3"
-                      style={{ display: sensorStates['D3'] ? 'block' : 'none' }}
-                    />
-                    {selectedSlot === 'A3' ? (
-                      <img
-                        className="user3-display"
-                        src={user.profilePicture}
-                        alt="User 3"
-                        style={{ display: sensorStates['D3'] ? 'none' : 'block' }}
-                      />
-                    ) : (
-                      <h2 className="log3" style={{ display: sensorStates['D3'] ? 'none' : 'block' }}>A3</h2>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-                  
-                  {currentSection === 'login' && (
-            <div id="login">
-              <div className="login-container">
-              <h2>Login</h2>
-              <form id="login-form" onSubmit={handleLoginSubmit}>
-                    <div className="form-group">
-                      <input
-                        type="text"
-                        placeholder="firstname"
-                        value={loginData.firstname}
-                        onChange={(e) => setLoginData({ ...loginData, firstname: e.target.value })}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Lastname"
-                        value={loginData.lastname}
-                        onChange={(e) => setLoginData({ ...loginData, lastname: e.target.value })}
-                      />
-                      <input
-                        type="text"
-                        placeholder="Cardid"
-                        value={loginData.cardID}
-                        onChange={(e) => setLoginData({ ...loginData, cardID: e.target.value })}
-                      />
-                    </div>
-                    
-                    <div className="img-input">
-                      <input type="file" accept="image/*" onChange={handleFileChange} />
-                      <div className="image-preview" id="image-preview">
-                        {imagePreview && <img src={imagePreview} alt="Preview" style={{ maxWidth: '100%' }} />}
-                      </div>
-                    </div>
-                    
-                    <button type="submit">Login</button>
-                  </form>
-            </div>
-          </div>
-              
-          )}
-          
         </div>
       </section>
     </div>
