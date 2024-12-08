@@ -138,7 +138,7 @@ function App() {
 
     // รีเซ็ตสถานะของช่องที่จอดสำหรับผู้ใช้ที่ล็อกอินอยู่
     const userId = user.userId;
-    const slotRef = ref(database, `Bookings/${userId}/${selectedSlot}`);
+    const slotRef = ref(database, `Bookings/${userId}/${selectedSlot},${imagePreview}`);
     set(slotRef, null).then(() => {
       console.log(`Slot ${selectedSlot} has been reset for user ${userId}`);
     }).catch(error => {
